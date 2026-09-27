@@ -1,16 +1,25 @@
 from cryptography.fernet import Fernet
+import os
 import sqlite3
+import sys
 import tkinter as tk
 from tkinter import messagebox
 
-# Generate and store encryption key (run once)
-# key = Fernet.generate_key()
-# with open("secret.key", "wb") as key_file:
-#     key_file.write(key)
+KEY_FILE = "secret.key"
+DB_FILE = "passwords.db"
 
-# Load encryption key
+# Load the encryption key, generating it on first run so a fresh clone works.
 def load_key():
-    with open("secret.key", "rb") as key_file:
+    if not os.path.exists(KEY_FILE):
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as key_file:
+            key_file.write(key)
+        try:
+            os.chmod(KEY_FILE, 0o600)  # owner-only on Linux/macOS
+        except OSError:
+            pass  # Windows has no chmod semantics
+        return key
+    with open(KEY_FILE, "rb") as key_file:
         return key_file.read()
 
 def encrypt_password(password, key):
@@ -23,7 +32,7 @@ def decrypt_password(encrypted_password, key):
 
 # Initialize database
 def init_db():
-    conn = sqlite3.connect("passwords.db")
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS passwords (site TEXT, username TEXT, password TEXT)")
     conn.commit()
@@ -34,13 +43,13 @@ def save_password():
     site = site_entry.get()
     username = user_entry.get()
     password = pass_entry.get()
-    
+
     if not site or not username or not password:
         messagebox.showwarning("Warning", "All fields are required!")
         return
-    
+
     encrypted_password = encrypt_password(password, key)
-    conn = sqlite3.connect("passwords.db")
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO passwords VALUES (?, ?, ?)", (site, username, encrypted_password))
     conn.commit()
@@ -50,15 +59,19 @@ def save_password():
 # Retrieve password
 def retrieve_password():
     site = site_entry.get()
-    conn = sqlite3.connect("passwords.db")
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT username, password FROM passwords WHERE site = ?", (site,))
     result = cursor.fetchone()
     conn.close()
-    
+
     if result:
         username, encrypted_password = result
-        decrypted_password = decrypt_password(encrypted_password, key)
+        try:
+            decrypted_password = decrypt_password(encrypted_password, key)
+        except Exception:
+            messagebox.showerror("Error", "Could not decrypt this entry. Was secret.key replaced?")
+            return
         messagebox.showinfo("Retrieved", f"Username: {username}\nPassword: {decrypted_password}")
     else:
         messagebox.showwarning("Not Found", "No password found for this site!")
