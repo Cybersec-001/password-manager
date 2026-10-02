@@ -40,8 +40,8 @@ def init_db():
 
 # Save password to database
 def save_password():
-    site = site_entry.get()
-    username = user_entry.get()
+    site = site_entry.get().strip()
+    username = user_entry.get().strip()
     password = pass_entry.get()
 
     if not site or not username or not password:
@@ -51,14 +51,22 @@ def save_password():
     encrypted_password = encrypt_password(password, key)
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO passwords VALUES (?, ?, ?)", (site, username, encrypted_password))
+    # Saving the same site again updates the entry instead of adding a duplicate
+    # (retrieve_password returns a single row, so duplicates would hide the new one).
+    cursor.execute("SELECT 1 FROM passwords WHERE site = ?", (site,))
+    if cursor.fetchone():
+        cursor.execute("UPDATE passwords SET username = ?, password = ? WHERE site = ?",
+                       (username, encrypted_password, site))
+    else:
+        cursor.execute("INSERT INTO passwords VALUES (?, ?, ?)", (site, username, encrypted_password))
     conn.commit()
     conn.close()
+    pass_entry.delete(0, tk.END)  # don't leave the password sitting in the form
     messagebox.showinfo("Success", "Password saved successfully!")
 
 # Retrieve password
 def retrieve_password():
-    site = site_entry.get()
+    site = site_entry.get().strip()
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT username, password FROM passwords WHERE site = ?", (site,))
