@@ -67,7 +67,7 @@ def list_entries(query=""):
 
 def generate_password(length=20):
     if not isinstance(length, int) or isinstance(length, bool) or length < 1:
-    raise ValueError("Password length must be a positive integer.")
+        raise ValueError("Password length must be a positive integer.")
     alphabet = string.ascii_letters + string.digits + "!@#%+-"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
