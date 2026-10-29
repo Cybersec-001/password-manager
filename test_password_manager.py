@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+import string
 from cryptography.fernet import Fernet, InvalidToken
 import password_manager as pm
 
@@ -65,3 +66,23 @@ class VaultTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class GeneratePasswordTests(unittest.TestCase):
+    def test_zero_and_negative_lengths_rejected(self):
+        for bad in (0, -1, -20):
+            with self.assertRaises(ValueError):
+                pm.generate_password(bad)
+
+    def test_non_integer_lengths_rejected(self):
+        for bad in ("20", 20.0, None, True):
+            with self.assertRaises(ValueError):
+                pm.generate_password(bad)
+
+    def test_custom_length_honoured(self):
+        self.assertEqual(len(pm.generate_password(8)), 8)
+        self.assertEqual(len(pm.generate_password(64)), 64)
+
+    def test_alphabet_only(self):
+        allowed = set(string.ascii_letters + string.digits + "!@#%+-")
+        self.assertTrue(set(pm.generate_password(200)) <= allowed)
